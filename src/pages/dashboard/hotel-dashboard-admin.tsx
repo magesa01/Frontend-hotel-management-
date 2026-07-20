@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 
 export function HotelAdminDashboard() {
   const { user } = useAuth();
-  const hotelId = user?.assignedHotelId;
+ const hotelId = user?.assignedHotelId;
 
   const bookingsQ = useHotelBookings(hotelId);
   const roomsQ = useQuery({

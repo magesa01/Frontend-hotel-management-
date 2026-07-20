@@ -1,39 +1,40 @@
-import { db } from '@/api/mock-data';
-import { delay, notFound, toPaginated } from '@/api/mock-helpers';
-import type { Paginated, QueryParams, RoomType } from '@/types';
+import { apiClient } from '@/api/client';
+import type { RoomType } from '@/types';
 
 export const roomTypeService = {
-  async list(params: QueryParams = {}): Promise<Paginated<RoomType>> {
-    return delay(toPaginated(db.roomTypes, params, ['name', 'bedType', 'hotelId']));
+  async list(): Promise<{ items: RoomType[]; total: number }> {
+    const { data } = await apiClient.get<RoomType[]>('/room-types');
+    return { items: data, total: data.length };
   },
 
   async listByHotel(hotelId: string): Promise<RoomType[]> {
-    return delay(db.roomTypes.filter((rt) => rt.hotelId === hotelId));
+    const { data } = await apiClient.get<RoomType[]>(`/hotels/${hotelId}/room-types`);
+    return data;
   },
 
   async getById(id: string): Promise<RoomType> {
-    const rt = db.roomTypes.find((r) => r.id === id);
-    if (!rt) throw notFound('Room type not found');
-    return delay(rt);
+    const { data } = await apiClient.get<RoomType>(`/room-types/${id}`);
+    return data;
   },
 
-  async create(payload: Omit<RoomType, 'id' | 'createdAt'>): Promise<RoomType> {
-    const rt: RoomType = { ...payload, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-    db.roomTypes.unshift(rt);
-    return delay(rt);
+  async create(hotelId: string, payload: Omit<RoomType, 'id' | 'createdAt' | 'hotelId'>): Promise<RoomType> {
+    const { data } = await apiClient.post<RoomType>(`/hotels/${hotelId}/room-types`, {
+      ...payload,
+      pricePerNight: payload.price,
+    });
+    return data;
   },
 
   async update(id: string, payload: Partial<RoomType>): Promise<RoomType> {
-    const idx = db.roomTypes.findIndex((r) => r.id === id);
-    if (idx === -1) throw notFound('Room type not found');
-    db.roomTypes[idx] = { ...db.roomTypes[idx], ...payload };
-    return delay(db.roomTypes[idx]);
+    const { data } = await apiClient.put<RoomType>(`/room-types/${id}`, {
+      ...payload,
+      pricePerNight: payload.price,
+    });
+    return data;
   },
 
   async remove(id: string): Promise<{ id: string }> {
-    const idx = db.roomTypes.findIndex((r) => r.id === id);
-    if (idx === -1) throw notFound('Room type not found');
-    db.roomTypes.splice(idx, 1);
-    return delay({ id });
+    await apiClient.delete(`/room-types/${id}`);
+    return { id };
   },
 };

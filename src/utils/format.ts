@@ -27,18 +27,24 @@ export function formatPercent(value: number, digits = 1): string {
   return `${value.toFixed(digits)}%`;
 }
 
-export function formatDate(date: string | Date, pattern = 'MMM d, yyyy'): string {
+export function formatDate(date: string | Date | null | undefined, pattern = 'MMM d, yyyy'): string {
+  if (!date) return '—';
   const d = typeof date === 'string' ? parseISO(date) : date;
+  if (isNaN(d.getTime())) return '—';
   return format(d, pattern);
 }
 
-export function formatDateTime(date: string | Date): string {
+export function formatDateTime(date: string | Date | null | undefined): string {
+  if (!date) return '—';
   const d = typeof date === 'string' ? parseISO(date) : date;
+  if (isNaN(d.getTime())) return '—';
   return format(d, 'MMM d, yyyy · h:mm a');
 }
 
-export function timeAgo(date: string | Date): string {
+export function timeAgo(date: string | Date | null | undefined): string {
+  if (!date) return '—';
   const d = typeof date === 'string' ? parseISO(date) : date;
+  if (isNaN(d.getTime())) return '—';
   return formatDistanceToNow(d, { addSuffix: true });
 }
 

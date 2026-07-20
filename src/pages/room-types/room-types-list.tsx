@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion';
 import { BedDouble, DoorOpen, MapPin, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { DataTable, type Column } from '@/components/shared/data-table';
 import { ApiState, EmptyState } from '@/components/shared/states';
 import { useTableFilters } from '@/hooks/use-table-filters';
-import { roomTypeHooks } from '@/hooks/resource-hooks';
+import { useRoomTypes, useDeleteRoomType } from '@/hooks/resource-hooks';
 import { useConfirmDelete } from '@/hooks/use-confirm-delete';
+import { useAuth } from '@/contexts/auth-context';
 import type { RoomType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -17,18 +18,59 @@ import { useHotelsLookup } from '@/hooks/use-relations';
 export default function RoomTypesList() {
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const { params, setSearch, setPage, setPageSize, setSort } = useTableFilters({ pageSize: 12 });
-  const { useList, useDelete } = roomTypeHooks;
-  const q = useList(params);
-  const deleteMut = useDelete();
+  const q = useRoomTypes();
+  const deleteMut = useDeleteRoomType();
   const navigate = useNavigate();
   const hotelsQ = useHotelsLookup();
+  const { user } = useAuth();
   const hotelName = (id: string) => hotelsQ.data?.find((h) => h.id === id)?.name ?? '—';
+
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isHotelAdmin = user?.role === 'HOTEL_ADMIN';
 
   const { request, dialog } = useConfirmDelete({
     message: () => 'This room type will be permanently removed.',
     onConfirm: async (id) => { await deleteMut.mutateAsync(id); },
     onSuccess: () => q.refetch(),
   });
+
+  const scoped = useMemo(() => {
+    let items = q.data?.items ?? [];
+    if (isHotelAdmin) {
+      items = items.filter((rt) => rt.hotelId === user?.assignedHotelId);
+    }
+    return items;
+  }, [q.data, isHotelAdmin, user]);
+
+  const filteredSorted = useMemo(() => {
+    let items = scoped;
+
+    if (params.search) {
+      const s = params.search.toLowerCase();
+      items = items.filter(
+        (rt) => rt.name.toLowerCase().includes(s) || rt.bedType?.toLowerCase().includes(s)
+      );
+    }
+
+    if (params.sortBy) {
+      const dir = params.sortDir === 'desc' ? -1 : 1;
+      const key = params.sortBy as keyof RoomType;
+      items = [...items].sort((a, b) => {
+        const av = a[key];
+        const bv = b[key];
+        if (av === bv) return 0;
+        return (av as any) > (bv as any) ? dir : -dir;
+      });
+    }
+
+    return items;
+  }, [scoped, params.search, params.sortBy, params.sortDir]);
+
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 12;
+  const total = filteredSorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageItems = filteredSorted.slice((page - 1) * pageSize, page * pageSize);
 
   const columns: Column<RoomType>[] = [
     { key: 'name', header: 'Name', sortable: true, cell: (rt) => (
@@ -45,14 +87,16 @@ export default function RoomTypesList() {
     { key: 'actions', header: '', hideable: false, cell: (rt) => (
       <div className="flex items-center justify-end gap-1">
         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/room-types/${rt.id}/edit`); }}>Edit</Button>
-        <Button variant="ghost" size="sm" className="text-danger hover:text-danger" onClick={(e) => { e.stopPropagation(); request(rt.id); }}>Delete</Button>
+        {isSuperAdmin && (
+          <Button variant="ghost" size="sm" className="text-danger hover:text-danger" onClick={(e) => { e.stopPropagation(); request(rt.id); }}>Delete</Button>
+        )}
       </div>
     )},
   ];
 
   return (
     <div>
-      <PageHeader title="Room Types" description="Manage room configurations across properties" icon={<BedDouble className="size-5" />}
+      <PageHeader title="Room Types" description={isHotelAdmin ? 'Room configurations for your hotel' : 'Manage room configurations across properties'} icon={<BedDouble className="size-5" />}
         actions={<>
           <div className="flex rounded-lg border border-border p-0.5">
             <button onClick={() => setView('cards')} className={view === 'cards' ? 'rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground' : 'rounded-md px-3 py-1 text-xs text-muted-foreground'}>Cards</button>
@@ -62,10 +106,10 @@ export default function RoomTypesList() {
         </>}
       />
       {view === 'cards' ? (
-        <ApiState isLoading={q.isLoading} isError={q.isError} onRetry={q.refetch} empty={q.data?.items.length === 0} emptyTitle="No room types yet" emptyAction={<Button asChild className="gap-2"><Link to="/room-types/new"><Plus className="size-4" /> Add room type</Link></Button>}
+        <ApiState isLoading={q.isLoading} isError={q.isError} onRetry={q.refetch} empty={pageItems.length === 0} emptyTitle="No room types yet" emptyAction={<Button asChild className="gap-2"><Link to="/room-types/new"><Plus className="size-4" /> Add room type</Link></Button>}
           skeleton={<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({length:6}).map((_,i)=><div key={i} className="h-56 animate-pulse rounded-xl bg-muted" />)}</div>}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {q.data?.items.map((rt, i) => (
+            {pageItems.map((rt, i) => (
               <motion.div key={rt.id} initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}} whileHover={{y:-3}}>
                 <Card className="overflow-hidden p-0">
                   <div className="relative aspect-video overflow-hidden">
@@ -84,7 +128,9 @@ export default function RoomTypesList() {
                     </div>
                     <div className="mt-3 flex gap-2">
                       <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/room-types/${rt.id}/edit`)}>Edit</Button>
-                      <Button variant="ghost" size="sm" className="text-danger hover:text-danger" onClick={() => request(rt.id)}>Delete</Button>
+                      {isSuperAdmin && (
+                        <Button variant="ghost" size="sm" className="text-danger hover:text-danger" onClick={() => request(rt.id)}>Delete</Button>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -93,7 +139,7 @@ export default function RoomTypesList() {
           </div>
         </ApiState>
       ) : (
-        <DataTable columns={columns} rows={q.data?.items ?? []} total={q.data?.total ?? 0} page={params.page ?? 1} pageSize={params.pageSize ?? 10} totalPages={q.data?.totalPages ?? 1}
+        <DataTable columns={columns} rows={pageItems} total={total} page={page} pageSize={pageSize} totalPages={totalPages}
           search={params.search ?? ''} sortBy={params.sortBy} sortDir={params.sortDir as 'asc'|'desc'} onSearchChange={setSearch} onSortChange={setSort} onPageChange={setPage} onPageSizeChange={setPageSize}
           onRowClick={(rt) => navigate(`/room-types/${rt.id}/edit`)} searchPlaceholder="Search room types…" exportFilename="room-types" loading={q.isLoading}
           emptyState={<EmptyState title="No room types found" icon={<BedDouble className="size-7 text-muted-foreground" />} />} />

@@ -3,13 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { FormField } from '@/components/shared/form-field';
 import { ImageUpload } from '@/components/shared/image-upload';
 import { restaurantSchema, type RestaurantForm } from '@/utils/schemas';
 import { useRestaurant, useCreateRestaurant, useUpdateRestaurant } from '@/hooks/resource-hooks';
 import { useHotelsLookup } from '@/hooks/use-relations';
+import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,17 +20,40 @@ export default function RestaurantFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const { user } = useAuth();
   const detailQ = useRestaurant(id);
   const createMut = useCreateRestaurant();
   const updateMut = useUpdateRestaurant();
   const hotelsQ = useHotelsLookup();
   const [submitting, setSubmitting] = useState(false);
 
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isHotelAdmin = user?.role === 'HOTEL_ADMIN';
+  const isRestaurantAdmin = user?.role === 'RESTAURANT_ADMIN';
+
+  // Zuia RESTAURANT_ADMIN kuhariri mgahawa usiokuwa wake, na HOTEL_ADMIN kuhariri mgahawa wa hoteli isiyokuwa yake
+  useEffect(() => {
+    if (isEdit && detailQ.data) {
+      if (isRestaurantAdmin && detailQ.data.id !== user?.assignedRestaurantId) {
+        navigate('/403', { replace: true });
+      } else if (isHotelAdmin && detailQ.data.hotelId !== user?.assignedHotelId) {
+        navigate('/403', { replace: true });
+      }
+    }
+  }, [isEdit, detailQ.data, isRestaurantAdmin, isHotelAdmin, user, navigate]);
+
+  // Hoteli zinazoonekana kwenye dropdown: HOTEL_ADMIN aone hoteli yake tu
+  const availableHotels = isHotelAdmin
+    ? (hotelsQ.data?.filter((h) => h.id === user?.assignedHotelId) ?? [])
+    : (hotelsQ.data ?? []);
+
   const { register, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<RestaurantForm>({
     resolver: zodResolver(restaurantSchema),
     values: detailQ.data
       ? { hotelId: detailQ.data.hotelId, name: detailQ.data.name, description: detailQ.data.description, cuisine: detailQ.data.cuisine, imageUrl: detailQ.data.imageUrl, openingHours: detailQ.data.openingHours, phone: detailQ.data.phone, rating: detailQ.data.rating }
-      : undefined,
+      : isHotelAdmin && user?.assignedHotelId
+        ? ({ hotelId: user.assignedHotelId } as RestaurantForm)
+        : undefined,
   });
 
   const hotelId = watch('hotelId');
@@ -65,9 +89,9 @@ export default function RestaurantFormPage() {
         <div className="rounded-xl border border-border bg-card p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Hotel" error={errors.hotelId?.message} required className="sm:col-span-2">
-              <Select value={hotelId} onValueChange={(v) => setValue('hotelId', v, { shouldValidate: true })}>
+              <Select value={hotelId} onValueChange={(v) => setValue('hotelId', v, { shouldValidate: true })} disabled={isHotelAdmin}>
                 <SelectTrigger><SelectValue placeholder="Select hotel" /></SelectTrigger>
-                <SelectContent>{hotelsQ.data?.map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{availableHotels.map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
             <FormField label="Name" htmlFor="name" error={errors.name?.message} required>

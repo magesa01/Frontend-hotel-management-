@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Building2, LayoutGrid, MapPin, Plus, Table as TableIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/shared/page-header';
 import { DataTable, type Column } from '@/components/shared/data-table';
@@ -9,6 +9,7 @@ import { RatingBadge } from '@/components/shared/rating-stars';
 import { useTableFilters } from '@/hooks/use-table-filters';
 import { hotelHooks } from '@/hooks/resource-hooks';
 import { useConfirmDelete } from '@/hooks/use-confirm-delete';
+import { useAuth } from '@/contexts/auth-context';
 import type { Hotel } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -20,9 +21,20 @@ export default function HotelsList() {
   const { useList, useDelete } = hotelHooks;
   const q = useList(params);
   const deleteMut = useDelete();
+  const { user } = useAuth();
 
   const navigate = useNavigate();
-  const hotels = q.data?.items ?? [];
+
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isHotelAdmin = user?.role === 'HOTEL_ADMIN';
+
+  const hotels = useMemo(() => {
+    const all = q.data?.items ?? [];
+    if (isHotelAdmin) {
+      return all.filter((h) => h.id === user?.assignedHotelId);
+    }
+    return all;
+  }, [q.data, isHotelAdmin, user]);
 
   const { request, dialog } = useConfirmDelete({
     message: () => 'This hotel and its related data will be permanently removed.',
@@ -58,7 +70,9 @@ export default function HotelsList() {
       cell: (h) => (
         <div className="flex items-center justify-end gap-1">
           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/hotels/${h.id}`); }}>View</Button>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); request(h.id); }} className="text-danger hover:text-danger">Delete</Button>
+          {isSuperAdmin && (
+            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); request(h.id); }} className="text-danger hover:text-danger">Delete</Button>
+          )}
         </div>
       ),
     },
@@ -68,7 +82,7 @@ export default function HotelsList() {
     <div>
       <PageHeader
         title="Hotels"
-        description="Manage your property portfolio"
+        description={isHotelAdmin ? 'Your assigned property' : 'Manage your property portfolio'}
         icon={<Building2 className="size-5" />}
         actions={
           <>
@@ -80,9 +94,11 @@ export default function HotelsList() {
                 <TableIcon className="size-4" />
               </button>
             </div>
-            <Button asChild className="gap-2">
-              <Link to="/hotels/new"><Plus className="size-4" /> Add hotel</Link>
-            </Button>
+            {isSuperAdmin && (
+              <Button asChild className="gap-2">
+                <Link to="/hotels/new"><Plus className="size-4" /> Add hotel</Link>
+              </Button>
+            )}
           </>
         }
       />
@@ -96,7 +112,7 @@ export default function HotelsList() {
           emptyTitle="No hotels yet"
           emptyDescription="Create your first property to get started."
           emptyIcon={<Building2 className="size-7 text-muted-foreground" />}
-          emptyAction={<Button asChild className="gap-2"><Link to="/hotels/new"><Plus className="size-4" /> Add hotel</Link></Button>}
+          emptyAction={isSuperAdmin ? <Button asChild className="gap-2"><Link to="/hotels/new"><Plus className="size-4" /> Add hotel</Link></Button> : undefined}
           skeleton={<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-64 animate-pulse rounded-xl bg-muted" />)}</div>}
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -142,7 +158,7 @@ export default function HotelsList() {
         <DataTable
           columns={columns}
           rows={hotels}
-          total={q.data?.total ?? 0}
+          total={hotels.length}
           page={params.page ?? 1}
           pageSize={params.pageSize ?? 10}
           totalPages={q.data?.totalPages ?? 1}

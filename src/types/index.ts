@@ -36,7 +36,7 @@ export interface RoomType {
   bedType: string;
   sizeSqm: number;
   imageUrl: string;
-  amenities: string[];
+  amenities: string;
   createdAt: string;
 }
 

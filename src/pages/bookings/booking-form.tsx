@@ -49,12 +49,22 @@ export default function BookingFormPage() {
   const onSubmit = async (data: BookingForm) => {
     setSubmitting(true);
     try {
-      const payload = { ...data, userId: user?.id ?? '', roomTypeId: selectedRoomType?.id ?? '', totalAmount: data.totalAmount || computedTotal };
       if (isEdit && id) {
+        const payload = { ...data, totalAmount: data.totalAmount || computedTotal };
         await updateMut.mutateAsync({ id, payload });
         toast.success('Booking updated');
         navigate(`/bookings/${id}`);
       } else {
+        // bookingService.create expects { profileId, roomId, checkIn, checkOut, guests, notes } —
+        // the backend derives hotel/rate/guest details from the room and profile itself.
+        const payload = {
+          profileId: user?.id ?? '',
+          roomId: data.roomId,
+          checkIn: data.checkIn,
+          checkOut: data.checkOut,
+          guests: data.guests,
+          notes: data.notes,
+        };
         const created = await createMut.mutateAsync(payload);
         toast.success('Booking created');
         navigate(`/bookings/${created.id}`);

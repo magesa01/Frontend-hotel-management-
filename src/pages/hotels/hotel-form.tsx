@@ -3,12 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { FormField } from '@/components/shared/form-field';
 import { ImageUpload } from '@/components/shared/image-upload';
 import { hotelSchema, type HotelForm } from '@/utils/schemas';
 import { hotelHooks } from '@/hooks/resource-hooks';
+import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,11 +18,21 @@ export default function HotelFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { useDetail, useCreate, useUpdate } = hotelHooks;
   const detailQ = useDetail(id);
   const createMut = useCreate();
   const updateMut = useUpdate();
   const [submitting, setSubmitting] = useState(false);
+
+  // Zuia HOTEL_ADMIN asihariri hoteli isiyokuwa yake
+  useEffect(() => {
+    if (isEdit && detailQ.data && user?.role === 'HOTEL_ADMIN') {
+      if (detailQ.data.id !== user.assignedHotelId) {
+        navigate('/403', { replace: true });
+      }
+    }
+  }, [isEdit, detailQ.data, user, navigate]);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<HotelForm>({
     resolver: zodResolver(hotelSchema),

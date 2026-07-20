@@ -23,7 +23,6 @@ type MenuItemCreate = Omit<MenuItem, 'id' | 'createdAt' | 'restaurantId'>;
 type ReviewCreate = { rating: number; comment: string };
 
 export const hotelHooks = makeCrudHooks<Hotel, HotelCreate, Partial<HotelCreate>>('hotels', hotelService);
-export const roomTypeHooks = makeCrudHooks<RoomType, RoomTypeCreate, Partial<RoomTypeCreate>>('roomTypes', roomTypeService);
 export function useRooms() {
   return useQuery({ queryKey: ['rooms', 'list'], queryFn: () => roomService.list() });
 }
@@ -173,5 +172,46 @@ export function useDeleteReview() {
   return useMutation({
     mutationFn: (id: string) => reviewService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reviews'] }),
+  });
+
+
+}
+
+// --- RoomType hooks (custom - create inahitaji hotelId) ---
+export function useRoomTypes() {
+  return useQuery({ queryKey: ['roomTypes', 'list'], queryFn: () => roomTypeService.list() });
+}
+
+export function useRoomType(id: string | undefined) {
+  return useQuery({
+    queryKey: ['roomTypes', 'detail', id],
+    queryFn: () => roomTypeService.getById(id!),
+    enabled: !!id,
+  });
+}
+
+export function useCreateRoomType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ hotelId, payload }: { hotelId: string; payload: RoomTypeCreate }) =>
+      roomTypeService.create(hotelId, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roomTypes'] }),
+  });
+}
+
+export function useUpdateRoomType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<RoomType> }) =>
+      roomTypeService.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roomTypes'] }),
+  });
+}
+
+export function useDeleteRoomType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => roomTypeService.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roomTypes'] }),
   });
 }

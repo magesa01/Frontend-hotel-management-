@@ -9,6 +9,7 @@ import { useTableFilters } from '@/hooks/use-table-filters';
 import { useRestaurants, useDeleteRestaurant } from '@/hooks/resource-hooks';
 import { useHotelsLookup } from '@/hooks/use-relations';
 import { useConfirmDelete } from '@/hooks/use-confirm-delete';
+import { useAuth } from '@/contexts/auth-context';
 import { RatingBadge } from '@/components/shared/rating-stars';
 import type { Restaurant } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,12 @@ export default function RestaurantsList() {
   const deleteMut = useDeleteRestaurant();
   const hotelsQ = useHotelsLookup();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const hotelName = (id: string) => hotelsQ.data?.find((h) => h.id === id)?.name ?? '—';
+
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isHotelAdmin = user?.role === 'HOTEL_ADMIN';
+  const isRestaurantAdmin = user?.role === 'RESTAURANT_ADMIN';
 
   const { request, dialog } = useConfirmDelete({
     message: () => 'This restaurant will be permanently removed.',
@@ -29,8 +35,18 @@ export default function RestaurantsList() {
     onSuccess: () => q.refetch(),
   });
 
-  const filteredSorted = useMemo(() => {
+  const scoped = useMemo(() => {
     let items = q.data?.items ?? [];
+    if (isHotelAdmin) {
+      items = items.filter((r) => r.hotelId === user?.assignedHotelId);
+    } else if (isRestaurantAdmin) {
+      items = items.filter((r) => r.id === user?.assignedRestaurantId);
+    }
+    return items;
+  }, [q.data, isHotelAdmin, isRestaurantAdmin, user]);
+
+  const filteredSorted = useMemo(() => {
+    let items = scoped;
 
     if (params.search) {
       const s = params.search.toLowerCase();
@@ -51,13 +67,19 @@ export default function RestaurantsList() {
     }
 
     return items;
-  }, [q.data, params.search, params.sortBy, params.sortDir]);
+  }, [scoped, params.search, params.sortBy, params.sortDir]);
 
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 12;
   const total = filteredSorted.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const pageItems = filteredSorted.slice((page - 1) * pageSize, page * pageSize);
+
+  const canEdit = (r: Restaurant) => {
+    if (isSuperAdmin || isHotelAdmin) return true;
+    if (isRestaurantAdmin) return r.id === user?.assignedRestaurantId;
+    return false;
+  };
 
   const columns: Column<Restaurant>[] = [
     { key: 'name', header: 'Restaurant', sortable: true, cell: (r) => (
@@ -70,21 +92,29 @@ export default function RestaurantsList() {
     { key: 'actions', header: '', hideable: false, cell: (r) => (
       <div className="flex items-center justify-end gap-1">
         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/restaurants/${r.id}`); }}>View</Button>
-        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/restaurants/${r.id}/edit`); }}>Edit</Button>
-        <Button variant="ghost" size="sm" className="text-danger hover:text-danger" onClick={(e) => { e.stopPropagation(); request(r.id); }}>Delete</Button>
+        {canEdit(r) && (
+          <>
+            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/restaurants/${r.id}/edit`); }}>Edit</Button>
+            {isSuperAdmin && (
+              <Button variant="ghost" size="sm" className="text-danger hover:text-danger" onClick={(e) => { e.stopPropagation(); request(r.id); }}>Delete</Button>
+            )}
+          </>
+        )}
       </div>
     )},
   ];
 
   return (
     <div>
-      <PageHeader title="Restaurants" description="Manage dining venues across properties" icon={<UtensilsCrossed className="size-5" />}
+      <PageHeader title="Restaurants" description={isHotelAdmin ? 'Dining venues in your hotel' : isRestaurantAdmin ? 'Your restaurant' : 'Manage dining venues across properties'} icon={<UtensilsCrossed className="size-5" />}
         actions={<>
           <div className="flex rounded-lg border border-border p-0.5">
             <button onClick={() => setView('cards')} className={view === 'cards' ? 'rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground' : 'rounded-md px-3 py-1 text-xs text-muted-foreground'}>Cards</button>
             <button onClick={() => setView('table')} className={view === 'table' ? 'rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground' : 'rounded-md px-3 py-1 text-xs text-muted-foreground'}>Table</button>
           </div>
-          <Button asChild className="gap-2"><Link to="/restaurants/new"><Plus className="size-4" /> Add restaurant</Link></Button>
+          {(isSuperAdmin || isHotelAdmin) && (
+            <Button asChild className="gap-2"><Link to="/restaurants/new"><Plus className="size-4" /> Add restaurant</Link></Button>
+          )}
         </>}
       />
       {view === 'cards' ? (

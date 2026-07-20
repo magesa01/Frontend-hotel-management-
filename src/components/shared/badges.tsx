@@ -29,8 +29,6 @@ export function Badge({ tone = 'muted', children, className }: { tone?: Tone; ch
 const ROOM_STATUS: Record<RoomStatus, { tone: Tone; label: string }> = {
   AVAILABLE: { tone: 'success', label: 'Available' },
   OCCUPIED: { tone: 'danger', label: 'Occupied' },
-  MAINTENANCE: { tone: 'warning', label: 'Maintenance' },
-  CLEANING: { tone: 'primary', label: 'Cleaning' },
 };
 
 const BOOKING_STATUS: Record<BookingStatus, { tone: Tone; label: string }> = {
@@ -42,12 +40,18 @@ const BOOKING_STATUS: Record<BookingStatus, { tone: Tone; label: string }> = {
 };
 
 const MENU_CATEGORY: Record<MenuCategory, { tone: Tone; label: string }> = {
-  STARTER: { tone: 'primary', label: 'Starter' },
-  MAIN: { tone: 'secondary', label: 'Main' },
-  DESSERT: { tone: 'warning', label: 'Dessert' },
-  BEVERAGE: { tone: 'primary', label: 'Beverage' },
   BREAKFAST: { tone: 'success', label: 'Breakfast' },
-  SIDES: { tone: 'muted', label: 'Sides' },
+  LUNCH: { tone: 'primary', label: 'Lunch' },
+  DINNER: { tone: 'secondary', label: 'Dinner' },
+  DRINK: { tone: 'primary', label: 'Drink' },
+  SNACK: { tone: 'muted', label: 'Snack' },
+};
+
+const ROLE_CONFIG: Record<string, { tone: Tone; label: string }> = {
+  SUPER_ADMIN: { tone: 'danger', label: 'Super Admin' },
+  HOTEL_ADMIN: { tone: 'primary', label: 'Hotel Admin' },
+  RESTAURANT_ADMIN: { tone: 'secondary', label: 'Restaurant Admin' },
+  CUSTOMER: { tone: 'muted', label: 'Customer' },
 };
 
 export function RoomStatusBadge({ status }: { status: RoomStatus }) {
@@ -66,7 +70,6 @@ export function MenuCategoryBadge({ category }: { category: MenuCategory }) {
 }
 
 export function RoleBadge({ role }: { role: string }) {
-  const tone: Tone = role === 'ADMIN' ? 'danger' : role === 'MANAGER' ? 'primary' : 'muted';
-  const label = role.charAt(0) + role.slice(1).toLowerCase();
-  return <Badge tone={tone}>{label}</Badge>;
+  const cfg = ROLE_CONFIG[role] ?? { tone: 'muted' as Tone, label: role };
+  return <Badge tone={cfg.tone}>{cfg.label}</Badge>;
 }

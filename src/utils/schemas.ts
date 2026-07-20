@@ -29,7 +29,7 @@ export const roomSchema = z.object({
   roomTypeId: z.string().min(1, 'Select a room type'),
   roomNumber: z.string().min(1, 'Room number is required'),
   floor: z.coerce.number().min(0, 'Floor must be 0 or positive'),
-  status: z.enum(['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING']),
+  status: z.enum(['AVAILABLE', 'OCCUPIED']).optional(),
 });
 export type RoomForm = z.infer<typeof roomSchema>;
 
@@ -65,7 +65,7 @@ export const menuItemSchema = z.object({
   restaurantId: z.string().min(1, 'Select a restaurant'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   description: z.string().min(5, 'Description must be at least 5 characters'),
-  category: z.enum(['STARTER', 'MAIN', 'DESSERT', 'BEVERAGE', 'BREAKFAST', 'SIDES']),
+  category: z.enum(['BREAKFAST', 'LUNCH', 'DINNER', 'DRINK', 'SNACK']),
   price: z.coerce.number().min(1, 'Price must be positive'),
   imageUrl: z.string().min(1, 'Image is required'),
   isAvailable: z.boolean(),
@@ -104,3 +104,23 @@ export const registerSchema = z
     path: ['confirmPassword'],
   });
 export type RegisterForm = z.infer<typeof registerSchema>;
+
+export const createAdminSchema = z
+  .object({
+    fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+    email: z.string().email('Enter a valid email'),
+    phoneNumber: z.string().min(7, 'Enter a valid phone number'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+    role: z.enum(['HOTEL_ADMIN', 'RESTAURANT_ADMIN']),
+    hotelId: z.string().optional(),
+    restaurantId: z.string().optional(),
+  })
+  .refine((d) => d.role !== 'HOTEL_ADMIN' || !!d.hotelId, {
+    message: 'Select a hotel for this Hotel Admin',
+    path: ['hotelId'],
+  })
+  .refine((d) => d.role !== 'RESTAURANT_ADMIN' || !!d.restaurantId, {
+    message: 'Select a restaurant for this Restaurant Admin',
+    path: ['restaurantId'],
+  });
+export type CreateAdminForm = z.infer<typeof createAdminSchema>;

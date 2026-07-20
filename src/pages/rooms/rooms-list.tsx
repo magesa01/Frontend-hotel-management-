@@ -1,32 +1,46 @@
 import { motion } from 'framer-motion';
 import { ArrowUp, DoorOpen, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/shared/page-header';
 import { DataTable, type Column } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useTableFilters } from '@/hooks/use-table-filters';
-import { roomHooks } from '@/hooks/resource-hooks';
+import { useRooms, useDeleteRoom } from '@/hooks/resource-hooks';
 import { useHotelsLookup } from '@/hooks/use-relations';
-import { useBulkDeleteRooms, useBulkUpdateRooms, useToggleRoomAvailability } from '@/hooks/use-rooms-bulk';
 import { useConfirmDelete } from '@/hooks/use-confirm-delete';
+import { roomService } from '@/services/room.service';
 import type { Room, RoomStatus } from '@/types';
 import { RoomStatusBadge } from '@/components/shared/badges';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
-const STATUSES: RoomStatus[] = ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING'];
+const STATUSES: RoomStatus[] = ['AVAILABLE', 'OCCUPIED'];
 
 export default function RoomsList() {
   const { params, setSearch, setPage, setPageSize, setSort } = useTableFilters({ pageSize: 20 });
-  const { useList, useDelete } = roomHooks;
-  const q = useList(params);
-  const deleteMut = useDelete();
-  const toggleMut = useToggleRoomAvailability();
-  const bulkDeleteMut = useBulkDeleteRooms();
-  const bulkUpdateMut = useBulkUpdateRooms();
+  const q = useRooms();
+  const deleteMut = useDeleteRoom();
+  const qc = useQueryClient();
+
+  const toggleMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: RoomStatus }) => roomService.toggleAvailability(id, status),
+  });
+
+  const bulkDeleteMut = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => roomService.remove(id))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+  });
+
+  const bulkUpdateMut = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: RoomStatus }) =>
+      Promise.all(ids.map((id) => roomService.toggleAvailability(id, status))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+  });
+
   const hotelsQ = useHotelsLookup();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<string[]>([]);
@@ -63,6 +77,34 @@ export default function RoomsList() {
     q.refetch();
   };
 
+  const filteredSorted = useMemo(() => {
+    let items = q.data?.items ?? [];
+
+    if (params.search) {
+      const s = params.search.toLowerCase();
+      items = items.filter((r) => r.roomNumber.toLowerCase().includes(s));
+    }
+
+    if (params.sortBy) {
+      const dir = params.sortDir === 'desc' ? -1 : 1;
+      const key = params.sortBy as keyof Room;
+      items = [...items].sort((a, b) => {
+        const av = a[key];
+        const bv = b[key];
+        if (av === bv) return 0;
+        return (av as any) > (bv as any) ? dir : -dir;
+      });
+    }
+
+    return items;
+  }, [q.data, params.search, params.sortBy, params.sortDir]);
+
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 20;
+  const total = filteredSorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageItems = filteredSorted.slice((page - 1) * pageSize, page * pageSize);
+
   const columns: Column<Room>[] = [
     { key: 'roomNumber', header: 'Room', sortable: true, cell: (r) => <span className="font-mono text-sm font-semibold">{r.roomNumber}</span> },
     { key: 'hotelId', header: 'Hotel', sortable: true, cell: (r) => <span className="text-sm text-muted-foreground">{hotelName(r.hotelId)}</span> },
@@ -85,7 +127,6 @@ export default function RoomsList() {
         actions={<Button asChild className="gap-2"><Link to="/rooms/new"><Plus className="size-4" /> Add room</Link></Button>}
       />
 
-      {/* Bulk actions bar */}
       {selected.length > 0 && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
           <span className="text-sm font-semibold text-primary">{selected.length} selected</span>
@@ -101,7 +142,7 @@ export default function RoomsList() {
         </motion.div>
       )}
 
-      <DataTable columns={columns} rows={q.data?.items ?? []} total={q.data?.total ?? 0} page={params.page ?? 1} pageSize={params.pageSize ?? 20} totalPages={q.data?.totalPages ?? 1}
+      <DataTable columns={columns} rows={pageItems} total={total} page={page} pageSize={pageSize} totalPages={totalPages}
         search={params.search ?? ''} sortBy={params.sortBy} sortDir={params.sortDir as 'asc'|'desc'} onSearchChange={setSearch} onSortChange={setSort} onPageChange={setPage} onPageSizeChange={setPageSize}
         onRowClick={(r) => navigate(`/rooms/${r.id}/edit`)} searchPlaceholder="Search rooms…" exportFilename="rooms" loading={q.isLoading}
         rowSelection={{ selectedIds: selected, onToggle: (id) => setSelected((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]), onToggleAll: setSelected }}

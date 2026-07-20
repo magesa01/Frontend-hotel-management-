@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, createTempSupabaseClient } from '@/lib/supabase';
 import { apiClient, setStoredSession } from '@/api/client';
 import type { User, UserRole } from '@/types';
 
@@ -8,6 +8,8 @@ interface BackendProfile {
   email: string;
   phoneNumber: string;
   role: UserRole;
+  hotelId?: string;
+  restaurantId?: string;
 }
 
 function mapProfileToUser(profile: BackendProfile, createdAt: string): User {
@@ -18,9 +20,10 @@ function mapProfileToUser(profile: BackendProfile, createdAt: string): User {
     phone: profile.phoneNumber,
     role: profile.role,
     createdAt,
+    assignedHotelId: profile.hotelId,
+    assignedRestaurantId: profile.restaurantId,
   };
 }
-
 function apiError(message: string, status: number) {
   return Object.assign(new Error(message), { status, isApiError: true });
 }
@@ -57,6 +60,7 @@ export const authService = {
       throw apiError(error?.message ?? 'Could not create account', 400);
     }
 
+
     // Only profile fields go to our backend — no password, ever.
     const { data: profile } = await apiClient.post<BackendProfile>('/profiles', {
       id: data.user.id,
@@ -75,6 +79,39 @@ export const authService = {
     const user = mapProfileToUser(profile, data.user.created_at ?? new Date().toISOString());
     setStoredSession(token, JSON.stringify(user));
     return { user, token };
+  },
+
+  // Called by a logged-in Super Admin to create a Hotel/Restaurant Admin account.
+  // Uses a throwaway Supabase client so the Super Admin's own session is untouched.
+  async createAdminAccount(input: {
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    password: string;
+    role: 'HOTEL_ADMIN' | 'RESTAURANT_ADMIN';
+    hotelId?: string;
+    restaurantId?: string;
+  }): Promise<User> {
+    const tempClient = createTempSupabaseClient();
+    const { data, error } = await tempClient.auth.signUp({
+      email: input.email,
+      password: input.password,
+    });
+    if (error || !data.user) {
+      throw apiError(error?.message ?? 'Could not create admin account', 400);
+    }
+
+    const { data: profile } = await apiClient.post<BackendProfile>('/profiles', {
+      id: data.user.id,
+      fullName: input.fullName,
+      email: input.email,
+      phoneNumber: input.phoneNumber,
+      role: input.role,
+      hotelId: input.hotelId,
+      restaurantId: input.restaurantId,
+    });
+
+    return mapProfileToUser(profile, data.user.created_at ?? new Date().toISOString());
   },
 
   async me(token: string): Promise<User> {
@@ -98,7 +135,8 @@ export const authService = {
 };
 
 export const ROLES: { role: UserRole; label: string; description: string }[] = [
-  { role: 'SUPER_ADMIN', label: 'Administrator', description: 'Full platform access' },
-  { role: 'MANAGER', label: 'Manager', description: 'Manage assigned hotels' },
+  { role: 'SUPER_ADMIN', label: 'Super Admin', description: 'Full platform access' },
+  { role: 'HOTEL_ADMIN', label: 'Hotel Admin', description: 'Manage an assigned hotel' },
+  { role: 'RESTAURANT_ADMIN', label: 'Restaurant Admin', description: 'Manage an assigned restaurant' },
   { role: 'CUSTOMER', label: 'Customer', description: 'Book & review stays' },
 ];

@@ -3,13 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { FormField } from '@/components/shared/form-field';
 import { ImageUpload } from '@/components/shared/image-upload';
 import { roomTypeSchema, type RoomTypeForm } from '@/utils/schemas';
-import { roomTypeHooks } from '@/hooks/resource-hooks';
+import { useRoomType, useCreateRoomType, useUpdateRoomType } from '@/hooks/resource-hooks';
 import { useHotelsLookup } from '@/hooks/use-relations';
+import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,18 +20,34 @@ export default function RoomTypeFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();
-  const { useDetail, useCreate, useUpdate } = roomTypeHooks;
-  const detailQ = useDetail(id);
-  const createMut = useCreate();
-  const updateMut = useUpdate();
+  const { user } = useAuth();
+  const detailQ = useRoomType(id);
+  const createMut = useCreateRoomType();
+  const updateMut = useUpdateRoomType();
   const hotelsQ = useHotelsLookup();
   const [submitting, setSubmitting] = useState(false);
+
+  const isHotelAdmin = user?.role === 'HOTEL_ADMIN';
+
+  useEffect(() => {
+    if (isEdit && detailQ.data && isHotelAdmin) {
+      if (detailQ.data.hotelId !== user?.assignedHotelId) {
+        navigate('/403', { replace: true });
+      }
+    }
+  }, [isEdit, detailQ.data, isHotelAdmin, user, navigate]);
+
+  const availableHotels = isHotelAdmin
+    ? (hotelsQ.data?.filter((h) => h.id === user?.assignedHotelId) ?? [])
+    : (hotelsQ.data ?? []);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<RoomTypeForm>({
     resolver: zodResolver(roomTypeSchema),
     values: detailQ.data
-      ? { ...detailQ.data, amenities: detailQ.data.amenities.join(', ') }
-      : undefined,
+      ? { ...detailQ.data, amenities: detailQ.data.amenities as unknown as string }
+      : isHotelAdmin && user?.assignedHotelId
+        ? ({ hotelId: user.assignedHotelId } as RoomTypeForm)
+        : undefined,
   });
 
   const hotelId = watch('hotelId');
@@ -39,12 +56,19 @@ export default function RoomTypeFormPage() {
   const onSubmit = async (data: RoomTypeForm) => {
     setSubmitting(true);
     try {
-      const payload = { ...data, amenities: data.amenities.split(',').map((a) => a.trim()).filter(Boolean) };
+      const payload = {
+        ...data,
+        amenities: data.amenities
+          .split(',')
+          .map((a) => a.trim())
+          .filter(Boolean)
+          .join(', '),
+      };
       if (isEdit && id) {
         await updateMut.mutateAsync({ id, payload });
         toast.success('Room type updated');
       } else {
-        await createMut.mutateAsync(payload);
+        await createMut.mutateAsync({ hotelId: data.hotelId, payload });
         toast.success('Room type created');
       }
       navigate('/room-types');
@@ -65,9 +89,9 @@ export default function RoomTypeFormPage() {
         <div className="rounded-xl border border-border bg-card p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Hotel" error={errors.hotelId?.message} required className="sm:col-span-2">
-              <Select value={hotelId} onValueChange={(v) => setValue('hotelId', v, { shouldValidate: true })}>
+              <Select value={hotelId} onValueChange={(v) => setValue('hotelId', v, { shouldValidate: true })} disabled={isHotelAdmin}>
                 <SelectTrigger><SelectValue placeholder="Select a hotel" /></SelectTrigger>
-                <SelectContent>{hotelsQ.data?.map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{availableHotels.map((h) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
             <FormField label="Name" htmlFor="name" error={errors.name?.message} required className="sm:col-span-2">

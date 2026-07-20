@@ -32,6 +32,12 @@ const ProfilePage = lazy(() => import('@/pages/profile/profile'));
 const NotFoundPage = lazy(() => import('@/pages/errors/not-found'));
 const ForbiddenPage = lazy(() => import('@/pages/errors/forbidden'));
 const ServerErrorPage = lazy(() => import('@/pages/errors/server-error'));
+const AdminManagersPage = lazy(() => import('@/pages/admin/managers'));
+
+const SUPER_ADMIN = ['SUPER_ADMIN'] as const;
+const HOTEL_MANAGERS = ['SUPER_ADMIN', 'HOTEL_ADMIN'] as const;
+const RESTAURANT_MANAGERS = ['SUPER_ADMIN', 'HOTEL_ADMIN', 'RESTAURANT_ADMIN'] as const;
+
 
 export default function App() {
   return (
@@ -45,7 +51,7 @@ export default function App() {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-              {/* Protected app */}
+              {/* Any logged-in user - read-only views + own bookings/profile/reviews */}
               <Route
                 element={
                   <ProtectedRoute>
@@ -57,34 +63,82 @@ export default function App() {
 
                 <Route path="/hotels" element={<HotelsPage />} />
                 <Route path="/hotels/:id" element={<HotelDetailPage />} />
-                <Route path="/hotels/new" element={<HotelFormPage />} />
-                <Route path="/hotels/:id/edit" element={<HotelFormPage />} />
-
                 <Route path="/room-types" element={<RoomTypesPage />} />
-                <Route path="/room-types/new" element={<RoomTypeFormPage />} />
-                <Route path="/room-types/:id/edit" element={<RoomTypeFormPage />} />
-
                 <Route path="/rooms" element={<RoomsPage />} />
-                <Route path="/rooms/new" element={<RoomFormPage />} />
-                <Route path="/rooms/:id/edit" element={<RoomFormPage />} />
+                <Route path="/restaurants" element={<RestaurantsPage />} />
+                <Route path="/restaurants/:id" element={<RestaurantDetailPage />} />
+                <Route path="/menu-items" element={<MenuItemsPage />} />
+                <Route path="/reviews" element={<ReviewsPage />} />
 
                 <Route path="/bookings" element={<BookingsPage />} />
                 <Route path="/bookings/:id" element={<BookingDetailPage />} />
                 <Route path="/bookings/new" element={<BookingFormPage />} />
-                <Route path="/bookings/:id/edit" element={<BookingFormPage />} />
-
-                <Route path="/restaurants" element={<RestaurantsPage />} />
-                <Route path="/restaurants/:id" element={<RestaurantDetailPage />} />
-                <Route path="/restaurants/new" element={<RestaurantFormPage />} />
-                <Route path="/restaurants/:id/edit" element={<RestaurantFormPage />} />
-
-                <Route path="/menu-items" element={<MenuItemsPage />} />
-                <Route path="/menu-items/new" element={<MenuItemFormPage />} />
-                <Route path="/menu-items/:id/edit" element={<MenuItemFormPage />} />
-
-                <Route path="/reviews" element={<ReviewsPage />} />
 
                 <Route path="/profile" element={<ProfilePage />} />
+              </Route>
+
+              {/* SUPER_ADMIN only - creating hotels, room types, rooms */}
+              <Route
+  element={
+    <ProtectedRoute roles={[...SUPER_ADMIN]}>
+      <DashboardLayout />
+    </ProtectedRoute>
+  }
+>
+  <Route path="/hotels/new" element={<HotelFormPage />} />
+  <Route path="/bookings/:id/edit" element={<BookingFormPage />} />
+</Route>
+
+<Route
+  element={
+    <ProtectedRoute roles={[...HOTEL_MANAGERS]}>
+      <DashboardLayout />
+    </ProtectedRoute>
+  }
+>
+  <Route path="/room-types/new" element={<RoomTypeFormPage />} />
+  <Route path="/room-types/:id/edit" element={<RoomTypeFormPage />} />
+  <Route path="/rooms/new" element={<RoomFormPage />} />
+  <Route path="/rooms/:id/edit" element={<RoomFormPage />} />
+</Route>
+             
+
+              {/* SUPER_ADMIN + HOTEL_ADMIN - editing own hotel, creating restaurants */}
+              <Route
+                element={
+                  <ProtectedRoute roles={[...HOTEL_MANAGERS]}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/hotels/:id/edit" element={<HotelFormPage />} />
+                <Route path="/restaurants/new" element={<RestaurantFormPage />} />
+              </Route>
+
+              {/* SUPER_ADMIN only - creating hotels, room types, rooms */}
+              <Route
+                element={
+                  <ProtectedRoute roles={[...SUPER_ADMIN]}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/hotels/new" element={<HotelFormPage />} />
+                <Route path="/bookings/:id/edit" element={<BookingFormPage />} />
+                <Route path="/admin/managers" element={<AdminManagersPage />} />
+              </Route>
+
+              {/* SUPER_ADMIN + HOTEL_ADMIN + RESTAURANT_ADMIN - restaurant/menu editing */}
+              <Route
+                element={
+                  <ProtectedRoute roles={[...RESTAURANT_MANAGERS]}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/restaurants/:id/edit" element={<RestaurantFormPage />} />
+                <Route path="/menu-items/new" element={<MenuItemFormPage />} />
+                <Route path="/menu-items/:id/edit" element={<MenuItemFormPage />} />
               </Route>
 
               {/* Errors */}
