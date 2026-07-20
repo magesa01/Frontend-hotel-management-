@@ -27,7 +27,7 @@ export default function RestaurantFormPage() {
   const hotelsQ = useHotelsLookup();
   const [submitting, setSubmitting] = useState(false);
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
   const isHotelAdmin = user?.role === 'HOTEL_ADMIN';
   const isRestaurantAdmin = user?.role === 'RESTAURANT_ADMIN';
 

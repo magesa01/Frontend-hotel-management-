@@ -42,7 +42,7 @@ export const userService = {
   },
 
   // Bado hakuna endpoint ya activities kwenye backend
-  async getActivities(limit = 6) {
+  async getActivities(_limit_ = 6) {
     return [];
   },
 };

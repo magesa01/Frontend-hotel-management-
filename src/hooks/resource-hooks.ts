@@ -17,7 +17,6 @@ import type {
 
 type HotelCreate = Omit<Hotel, 'id' | 'createdAt' | 'updatedAt'>;
 type RoomTypeCreate = Omit<RoomType, 'id' | 'createdAt'>;
-type RoomCreate = Omit<Room, 'id' | 'createdAt'>;
 type RestaurantCreate = Omit<Restaurant, 'id' | 'createdAt' | 'hotelId'>;
 type MenuItemCreate = Omit<MenuItem, 'id' | 'createdAt' | 'restaurantId'>;
 type ReviewCreate = { rating: number; comment: string };

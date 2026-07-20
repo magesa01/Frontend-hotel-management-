@@ -35,17 +35,17 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Operations',
     items: [
-      { label: 'Hotels', to: '/hotels', icon: Building2, roles: ['ADMIN', 'MANAGER'] },
-      { label: 'Room Types', to: '/room-types', icon: BedDouble, roles: ['ADMIN', 'MANAGER'] },
-      { label: 'Rooms', to: '/rooms', icon: DoorOpen, roles: ['ADMIN', 'MANAGER'] },
-      { label: 'Bookings', to: '/bookings', icon: CalendarRange },
+      { label: 'Hotels', to: '/hotels', icon: Building2, roles: ['SUPER_ADMIN'] },
+      { label: 'Room Types', to: '/room-types', icon: BedDouble, roles: ['SUPER_ADMIN', 'HOTEL_ADMIN'] },
+      { label: 'Rooms', to: '/rooms', icon: DoorOpen, roles: ['SUPER_ADMIN', 'HOTEL_ADMIN'] },
+      { label: 'Bookings', to: '/bookings', icon: CalendarRange, roles: ['SUPER_ADMIN', 'HOTEL_ADMIN', 'CUSTOMER'] },
     ],
   },
   {
     title: 'Dining',
     items: [
-      { label: 'Restaurants', to: '/restaurants', icon: UtensilsCrossed },
-      { label: 'Menu Items', to: '/menu-items', icon: ClipboardList, roles: ['ADMIN', 'MANAGER'] },
+      { label: 'Restaurants', to: '/restaurants', icon: UtensilsCrossed, roles: ['SUPER_ADMIN', 'HOTEL_ADMIN', 'RESTAURANT_ADMIN'] },
+      { label: 'Menu Items', to: '/menu-items', icon: ClipboardList, roles: ['SUPER_ADMIN', 'HOTEL_ADMIN', 'RESTAURANT_ADMIN'] },
     ],
   },
   {
