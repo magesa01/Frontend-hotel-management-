@@ -7,7 +7,11 @@ import { AuthProvider } from '@/contexts/auth-context';
 import { DashboardLayout } from '@/layouts/dashboard-layout';
 import { ProtectedRoute } from '@/routes/protected-route';
 import { lazy } from 'react';
+import { useAuth } from '@/contexts/auth-context';
+import { FullScreenLoader } from '@/components/ui/full-screen-loader';
 
+
+const LandingPage = lazy(() => import('@/pages/landing/landing'));
 const LoginPage = lazy(() => import('@/pages/auth/login'));
 const RegisterPage = lazy(() => import('@/pages/auth/register'));
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/forgot-password'));
@@ -39,6 +43,13 @@ const HOTEL_MANAGERS = ['SUPER_ADMIN', 'HOTEL_ADMIN'] as const;
 const RESTAURANT_MANAGERS = ['SUPER_ADMIN', 'HOTEL_ADMIN', 'RESTAURANT_ADMIN'] as const;
 
 
+function HomeRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <FullScreenLoader />;
+
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <LandingPage />;
+}
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -146,7 +157,7 @@ export default function App() {
               <Route path="/500" element={<ServerErrorPage />} />
               <Route path="/404" element={<NotFoundPage />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<HomeRoute />} />
             </Routes>
           </BrowserRouter>
           <Toaster richColors position="top-right" closeButton />
